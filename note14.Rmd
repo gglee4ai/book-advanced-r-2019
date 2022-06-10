@@ -276,6 +276,227 @@ wd$get()
 
 ## 14.3 Controlling access
 
+```{r}
+Person <- R6Class(
+  "Person",
+  public = list(
+    initialize = function(name, age = NA) {
+      private$name <- name
+      private$age <- age
+    },
+    print = function(...) {
+      cat("Person: \n")
+      cat("  Name: ", private$name, "\n", sep = "")
+      cat("  Age:  ", private$age, "\n", sep = "")
+    }
+  ),
+  private = list(
+    age = NA,
+    name = NULL
+  )
+)
+
+hadley3 <- Person$new("Hadley")
+hadley3
+hadley3$name
+```
+
+```{r}
+Rando <- R6Class("Rando", active = list(
+  random = function(value) {
+    if (missing(value)) {
+      runif(1)
+    } else {
+      stop("Can't set `$random`", call. = FALSE)
+    }
+  }
+))
+x <- Rando$new()
+x$random
+x$random
+x$random
+```
+
+```{r}
+Person <- R6Class(
+  "Person",
+  private = list(
+    .age = NA,
+    .name = NULL
+  ),
+  active = list(
+    age = function(value) {
+      if (missing(value)) {
+        private$.age
+      } else {
+        stop("`$age` is read only", call. = FALSE)
+      }
+    },
+    name = function(value) {
+      if (missing(value)) {
+        private$.name
+      } else {
+        stopifnot(is.character(value), length(value) == 1)
+        private$.name <- value
+        self
+      }
+    }
+  ),
+  public = list(
+    initialize = function(name, age = NA) {
+      private$.name <- name
+      private$.age <- age
+    }
+  )
+)
+
+hadley4 <- Person$new("Hadley", age = 38)
+hadley4$name
+try(hadley4$name <- 10)
+try(hadley4$age <- 20)
+hadley4$age
+```
+
+```{r}
+BankAccountStrict2 <- R6Class(
+  "BankAccountStrict2",
+  public = list(
+    deposit = function(dep = 0) {
+      private$balance <- private$balance + dep
+      invisible(self)
+    },
+    withdraw = function(draw = 0) {
+      if (private$balance - draw < 0) {
+        stop(
+          "Your `withdraw` must be smaller than your `balance`.",
+          call. = FALSE
+        )
+      }
+      private$balance <- private$balance - draw
+      invisible(self)
+    }
+  ),
+  private = list(
+    balance = 0
+  )
+)
+my_account_strict_2 <- BankAccountStrict2$new()
+my_account_strict_2$deposit(5)
+try(my_account_strict_2$withdraw(10))
+my_account_strict_2$balance
+```
+
+```{r}
+Password <- R6Class(
+  "Password",
+  public = list(
+    print = function(...) {
+      cat("<Password>: ********\n")
+      invisible(self)
+    },
+    set = function(value) {
+      private$password <- value
+    },
+    check = function(password) {
+      identical(password, private$password)
+    }
+  ),
+  private = list(password = NULL)
+)
+
+my_pw <- Password$new()
+my_pw$set("snuffles")
+my_pw$password
+my_pw
+my_pw$check("snuggles")
+my_pw$check("snuffles")
+str(my_pw)
+```
+
+```{r}
+Rando <- R6::R6Class(
+  classname = "Rando",
+  private = list(
+    last_random = NULL
+  ),
+  active = list(
+    random = function(value) {
+      if (missing(value)) {
+        private$last_random <- runif(1)
+        private$last_random
+      } else {
+        stop("Can't set `$random`.", call. = FALSE)
+      }
+    },
+    previous = function(value) {
+      if (missing(value)) {
+        private$last_random
+      }
+    }
+  )
+)
+
+x <- Rando$new()
+x$random
+x$random
+x$previous
+```
+
+```{r}
+A <- R6Class(
+  "A",
+  private = list(
+    field = "foo",
+    method = function() {
+      "bar"
+    }
+  )
+)
+
+B <- R6Class(
+  "B",
+  inherit = A,
+  public = list(
+    test = function() {
+      cat("Field:  ", super$field, "\n", sep = "")
+      cat("Method: ", super$method(), "\n", sep = "")
+    }
+  )
+)
+
+B$new()$test()
+```
+
 ## 14.4 Reference semantics
+
+```{r}
+y1 <- Accumulator$new()
+y2 <- y1
+y1$add(10)
+c(y1 = y1$sum, y2 = y2$sum)
+```
+
+```{r}
+y1 <- Accumulator$new()
+y2 <- y1$clone()
+
+y1$add(10)
+c(y1 = y1$sum, y2 = y2$sum)
+```
+
+```{r}
+TemporaryFile <- R6Class("TemporaryFile", list(
+  path = NULL,
+  initialize = function() {
+    self$path <- tempfile()
+  },
+  finalize = function() {
+    cat("Cleaning up ", self$path)
+    unlink(self$path)
+  }
+))
+tf <- TemporaryFile$new()
+rm(tf)
+```
 
 ## 14.5 Why R6?
