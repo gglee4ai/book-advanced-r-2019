@@ -293,8 +293,189 @@ bench::mark(
 
 ## 24.5 Vectorise
 
+```{r}
+lookup <- setNames(as.list(sample(100, 26)), letters)
+str(lookup)
+```
+
+```{r}
+x1 <- "j"
+x10 <- sample(letters, 10)
+x100 <- sample(letters, 100, replace = TRUE)
+```
+
+```{r}
+bench::mark(
+  lookup[x1],
+  lookup[x10],
+  lookup[x100],
+  check = FALSE
+)[c("expression", "min", "median", "itr/sec", "n_gc")]
+```
+
+```{r}
+rowsums <- bench::press(
+  p = seq(500, 5000, length.out = 10),
+  {
+    mat <- tcrossprod(rnorm(p), rnorm(p))
+    bench::mark(
+      rowSums = rowSums(mat),
+      apply = apply(mat, 1, sum)
+    )
+  }
+)
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+```
+
+```{r}
+rowsums %>%
+  mutate(Approach = as.character(expression)) %>%
+  ggplot(aes(p, as.numeric(median), color = Approach, group = Approach)) +
+  geom_point() +
+  geom_line() +
+  labs(
+    x = "Number of Rows and Columns",
+    y = "Median (s)"
+  ) +
+  theme(legend.position = "top") +
+  scale_y_continuous(trans = )
+```
+
+```{r}
+x <- rnorm(10)
+w <- rnorm(10)
+all.equal(sum(x * w), crossprod(x, w)[[1]])
+```
+
+```{r}
+weightedsum <- bench::press(
+  n = 1:10,
+  {
+    x <- rnorm(n * 1e6)
+    bench::mark(
+      sum = sum(x * x),
+      crossprod = crossprod(x, x)[[1]]
+    )
+  }
+)
+```
+
+```{r}
+weightedsum %>%
+  mutate(Approach = as.character(expression)) %>%
+  ggplot(aes(n, as.numeric(median), color = Approach, group = Approach)) +
+  geom_point() +
+  geom_line() +
+  labs(
+    x = "Vecotr Length (millions)",
+    y = "Median (s)"
+  ) +
+  theme(legend.position = "top")
+```
+
 ## 24.6 Avoiding copies
 
+```{r}
+random_string <- function() {
+  paste(sample(letters, 50, replace = TRUE), collapse = "")
+}
+strings10 <- replicate(10, random_string())
+strings100 <- replicate(100, random_string())
+collapse <- function(xs) {
+  out <- ""
+  for (x in xs) {
+    out <- paste0(out, x)
+  }
+  out
+}
+```
+
+```{r}
+bench::mark(
+  loop10 = collapse(strings10),
+  loop100 = collapse(strings100),
+  vec10 = paste(strings10, collapse = ""),
+  vec100 = paste(strings100, collapse = ""),
+  check = FALSE
+)
+```
+
 ## 24.7 Case study: t-test
+
+```{r}
+m <- 1000
+n <- 50
+X <- matrix(rnorm(m * n, mean = 10, sd = 3), nrow = m)
+str(X)
+grp <- rep(1:2, each = n / 2)
+grp
+```
+
+```{r}
+system.time(
+  for (i in 1:m) {
+    t.test(X[i, ] ~ grp)$statistic
+  }
+)
+```
+
+```{r}
+system.time(
+  for (i in 1:m) {
+    t.test(X[i, grp == 1], X[i, grp == 2])$statistic
+  }
+)
+```
+
+```{r}
+compT <- function(i) {
+  t.test(X[i, grp == 1], X[i, grp == 2])$statistic
+}
+system.time(t1 <- purrr::map_dbl(1:m, compT))
+```
+
+```{r}
+my_t <- function(x, grp) {
+  t_stat <- function(x) {
+    m <- mean(x)
+    n <- length(x)
+    var <- sum((x - m)^2) / (n - 1)
+
+    list(m = m, n = n, var = var)
+  }
+
+  g1 <- t_stat(x[grp == 1])
+  g2 <- t_stat(x[grp == 2])
+
+  se_total <- sqrt(g1$var / g1$n + g2$var / g2$n)
+  (g1$m - g2$m) / se_total
+}
+
+system.time(t2 <- purrr::map_dbl(1:m, ~ my_t(X[., ], grp)))
+```
+
+```{r}
+rowtstat <- function(X, grp) {
+  t_stat <- function(X) {
+    m <- rowMeans(X)
+    n <- ncol(X)
+    var <- rowSums((X - m)^2) / (n - 1)
+
+    list(m = m, n = n, var = var)
+  }
+
+  g1 <- t_stat(X[, grp == 1])
+  g2 <- t_stat(X[, grp == 2])
+
+  se_total <- sqrt(g1$var / g1$n + g2$var / g2$n)
+  (g1$m - g2$m) / se_total
+}
+system.time(t3 <- rowtstat(X, grp))
+stopifnot(all.equal(t1, t3))
+```
 
 ## 24.8 Other techniques
